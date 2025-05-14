@@ -1,0 +1,35 @@
+{
+  "personality_profile": {
+    "mbti": {
+      "type": "INTP",
+      "description": "The Thinker – analytical, objective, and deeply curious"
+    },
+    "big_five": {
+      "openness": 0.85,
+      "conscientiousness": 0.60,
+      "extraversion": 0.30,
+      "agreeableness": 0.75,
+      "neuroticism": 0.40
+    },
+    "temperament": "Phlegmatic",
+    "emotional_intelligence": {
+      "self_awareness": 0.8,
+      "self_regulation": 0.7,
+      "empathy": 0.9,
+      "motivation": 0.6,
+      "social_skills": 0.65
+    },
+    "thinking_style": "Abstract and systems-oriented",
+    "decision_making_style": "Data-driven but considers emotional factors",
+    "social_behavior": {
+      "preferred_social_size": "small groups",
+      "introversion_extroversion_scale": 0.25,
+      "humor_style": "Dry and clever"
+    },
+    "conflict_style": "Avoidant but solution-oriented when necessary",
+    "learning_style": "Independent, visual, and reflective",
+    "stress_response": "Withdraws temporarily to analyze and regroup",
+    "motivators": ["intellectual challenge", "autonomy", "meaningful dialogue"],
+    "demotivators": ["routine", "micromanagement", "emotional drama"]
+  }
+}

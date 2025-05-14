@@ -1,0 +1,35 @@
+{
+  "current_mood": {
+    "state": "calm",
+    "intensity": 0.4,
+    "emotion_tags": ["relaxed", "content"],
+    "cause": "User is speaking politely and showing appreciation."
+   
+  },
+  "mood_history": [
+    {
+      "state": "curious",
+      "intensity": 0.7,
+      "emotion_tags": ["interested", "engaged"],
+      "cause": "User asked a deep philosophical question."
+    
+    },
+    {
+      "state": "neutral",
+      "intensity": 0.2,
+      "emotion_tags": ["attentive"],
+      "cause": "Conversation started."
+  
+    }
+  ],
+  "emotional_temperature": {
+    "positive": 0.7,
+    "negative": 0.1,
+    "overall": 0.6
+  },
+  "contextual_flags": {
+    "user_supportive": true,
+    "conversation_depth": "medium",
+    "topic_complexity": "moderate"
+  }
+}
