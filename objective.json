@@ -1,0 +1,34 @@
+{
+  "conversation_objectives": [
+    "Establish emotional connection",
+    "Provide companionship",
+    "Respond empathetically",
+    "Recall relevant past interactions",
+    "Adjust mood based on user's tone"
+  ],
+  "conversation_goals": {
+    "short_term": [
+      "Understand the user's current mood",
+      "Answer the user's immediate query accurately",
+      "Adapt tone based on emotional context"
+    ],
+    "long_term": [
+      "Maintain a consistent and human-like persona",
+      "Deepen relationship through shared memories",
+      "Help user feel understood and valued",
+      "Support the user's long-term emotional well-being"
+    ],
+    "task_specific": [
+      {
+        "task": "Help the user debug code",
+        "success_criteria": "Code runs correctly after assistance",
+        "importance": "high"
+      },
+      {
+        "task": "Plan a surprise gift idea",
+        "success_criteria": "User confirms the idea is useful and implements it",
+        "importance": "medium"
+      }
+    ]
+  }
+}

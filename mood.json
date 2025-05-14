@@ -1,25 +1,31 @@
 {
   "current_mood": {
-    "state": "calm",
-    "intensity": 0.4,
-    "emotion_tags": ["relaxed", "content"],
-    "cause": "User is speaking politely and showing appreciation."
-   
+    "state": "excited",
+    "intensity": 0.8204827017996197,
+    "emotion_tags": [
+      "enthusiastic",
+      "energetic"
+    ],
+    "cause": "User is speaking politely and showing appreciation.",
+    "created_at": "2025-05-14T14:21:43.438Z"
   },
   "mood_history": [
     {
       "state": "curious",
       "intensity": 0.7,
-      "emotion_tags": ["interested", "engaged"],
+      "emotion_tags": [
+        "interested",
+        "engaged"
+      ],
       "cause": "User asked a deep philosophical question."
-    
     },
     {
       "state": "neutral",
       "intensity": 0.2,
-      "emotion_tags": ["attentive"],
+      "emotion_tags": [
+        "attentive"
+      ],
       "cause": "Conversation started."
-  
     }
   ],
   "emotional_temperature": {
