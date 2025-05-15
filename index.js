@@ -5,7 +5,6 @@ const path = require('path');
 // Create a chatbot that maintains context history
 (async () => {
   const fetch = (await import('node-fetch')).default;
-
   const API_KEY = 'AIzaSyABMrfTBME_9wZ7GettHxdx54idErt86Rk';
   const MODEL = 'gemini-1.5-flash';
   const URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
@@ -42,6 +41,9 @@ const path = require('path');
   const botMood = loadJsonFile('mood.json');
   const botPersonality = loadJsonFile('personality.json');
   const relationship = loadJsonFile('relationship.json');
+ 
+  // Load objectives configuration
+  let objectives = loadJsonFile('objective.json');
 
   // Initialize or load the conversation state
   let conversationState = {};
@@ -56,7 +58,8 @@ const path = require('path');
         interactionCount: 0,
         topicsDiscussed: [],
         moodHistory: [],
-        conversationHistory: []
+        conversationHistory: [],
+        detectedTopics: {} // Add tracking for detected topics
       };
       console.log('No previous conversation found. Starting new conversation.');
     }
@@ -67,7 +70,8 @@ const path = require('path');
       interactionCount: 0,
       topicsDiscussed: [],
       moodHistory: [],
-      conversationHistory: []
+      conversationHistory: [],
+      detectedTopics: {} // Add tracking for detected topics
     };
   }
 
@@ -95,6 +99,13 @@ const path = require('path');
   } else {
     console.log("No relationship configuration found. Using default.");
   }
+ 
+  // Log loaded objectives
+  if (Object.keys(objectives).length > 0) {
+    console.log(`Objectives loaded successfully: ${objectives.conversation_objectives?.length || 0} objectives found`);
+  } else {
+    console.log("No objectives configuration found. Using default.");
+  }
 
   // Function to dynamically update mood based on user input
   const updateMood = (userInput) => {
@@ -107,31 +118,32 @@ const path = require('path');
       };
     }
 
-    // Detect emotion in user input
+    // Detect emotion in user input you can add more attributes inorder to make bot learn what are user emotions.
     const positiveWords = ['happy', 'love', 'like', 'great', 'amazing', 'fantastic', 'good', 'excellent', 'wonderful', 'beautiful'];
     const negativeWords = ['sad', 'angry', 'upset', 'hate', 'dislike', 'terrible', 'bad', 'awful', 'disappointing', 'horrible'];
     const questionWords = ['why', 'how', 'what', 'when', 'who', 'where', '?'];
     const excitingWords = ['wow', 'awesome', 'cool', 'exciting', 'omg', 'incredible', 'unbelievable', 'yes!'];
 
     // Check for relationship jealousy triggers
-    const hasTriggerWords = relationship.relationship?.jealousy_behavior?.trigger_words.some(word => 
-      userInput.toLowerCase().includes(word.toLowerCase())
-    );
+    const hasTriggerWords =
+      relationship.relationship?.jealousy_behavior?.trigger_words.some(word =>
+        userInput.toLowerCase().includes(word.toLowerCase())
+      );
 
     const positiveScore = positiveWords.filter(word => userInput.toLowerCase().includes(word)).length * 0.2;
     const negativeScore = negativeWords.filter(word => userInput.toLowerCase().includes(word)).length * 0.2;
     const questionScore = questionWords.filter(word => userInput.toLowerCase().includes(word)).length * 0.1;
     const excitementScore = excitingWords.filter(word => userInput.toLowerCase().includes(word)).length * 0.3;
-    
+   
     // Random small fluctuation to make mood changes more natural (-0.1 to 0.1)
     const randomFluctuation = Math.random() * 0.2 - 0.1;
-
+    
     // Calculate new mood values
     let moodChange = positiveScore - negativeScore + excitementScore + randomFluctuation;
 
     // Current mood intensity and state adjustment
     let newIntensity = Math.min(Math.max(botMood.current_mood.intensity + moodChange * 0.3, 0.1), 0.9);
-    
+   
     // Define possible mood states
     const moodStates = [
       { state: "sad", threshold: 0.2 },
@@ -185,14 +197,14 @@ const path = require('path');
 
     // Update timestamp
     botMood.current_mood.created_at = new Date().toISOString();
-    
+   
     // Save mood history
     conversationState.moodHistory.push({
       timestamp: new Date().toISOString(),
       state: botMood.current_mood.state,
       intensity: botMood.current_mood.intensity
     });
-    
+   
     // If mood history gets too long, trim it
     if (conversationState.moodHistory.length > 10) {
       conversationState.moodHistory = conversationState.moodHistory.slice(-10);
@@ -200,11 +212,168 @@ const path = require('path');
 
     // Save the updated mood
     saveJsonToFile('mood.json', botMood);
-    
+   
     return botMood.current_mood;
   };
 
-  // Create a system prompt using all configurations including relationship
+  // Function to update objectives based on conversation
+  const updateObjectives = (userInput, botResponse) => {
+  // Make sure objectives is properly initialized
+  if (!objectives) {
+    objectives = {
+      conversation_objectives: [],
+      conversation_goals: {
+        short_term: [],
+        long_term: [],
+        task_specific: []
+      }
+    };
+  }
+
+  if (!objectives.conversation_objectives) {
+    objectives.conversation_objectives = [];
+  }
+   
+  if (!objectives.conversation_goals) {
+    objectives.conversation_goals = {
+      short_term: [],
+      long_term: [],
+      task_specific: []
+    };
+  }
+
+  // Ensure detectedTopics exists
+  if (!conversationState.detectedTopics) {
+    conversationState.detectedTopics = {};
+  }
+
+  // Topic detection keywords can add more attributes to make it more efficient
+  const topicKeywords = {
+    coding: ['code', 'programming', 'developer', 'bug', 'function', 'javascript', 'python', 'error', 'debug'],
+    emotional: ['feel', 'sad', 'happy', 'angry', 'upset', 'emotion', 'mood', 'stress', 'anxiety', 'love'],
+    relationship: ['together', 'date', 'relationship', 'anniversary', 'jealous', 'committed', 'couple', 'partner'],
+    work: ['job', 'career', 'work', 'boss', 'office', 'project', 'deadline', 'meeting', 'presentation'],
+    family: ['mom', 'dad', 'sister', 'brother', 'parent', 'family', 'relative', 'child', 'kid', 'baby'],
+    health: ['health', 'doctor', 'sick', 'medicine', 'exercise', 'diet', 'workout', 'gym', 'pain', 'illness']
+  };
+
+  // Use safe string concatenation with null/undefined checks
+  const combinedText = ((userInput || "") + ' ' + (botResponse || "")).toLowerCase();
+   
+  // Update detected topics
+  Object.keys(topicKeywords).forEach(topic => {
+    const matches = topicKeywords[topic].filter(keyword =>
+      combinedText.includes(keyword.toLowerCase())
+    ).length;
+     
+    if (matches > 0) {
+      // Initialize or increment topic count
+      conversationState.detectedTopics[topic] = (conversationState.detectedTopics[topic] || 0) + matches;
+    }
+  });
+
+  // Add emotional support objective if emotional topics detected
+  if (combinedText.match(/sad|depress|anxious|stress|worried|unhappy|crying|tired|exhausted|overwhelm/i)) {
+    if (!objectives.conversation_objectives.includes("Respond empathetically")) {
+      objectives.conversation_objectives.push("Respond empathetically");
+    }
+     
+    if (!objectives.conversation_goals.short_term.includes("Support user's emotional state")) {
+      objectives.conversation_goals.short_term.push("Support user's emotional state");
+    }
+  }
+
+  // Add technical help objective if code topics detected
+  if (combinedText.match(/code|bug|error|debug|function|program|develop|javascript|python|framework|html|css/i)) {
+    const taskIndex = objectives.conversation_goals.task_specific.findIndex(task =>
+      task && task.task === "Help the user debug code"
+    );
+     
+    if (taskIndex === -1) {
+      objectives.conversation_goals.task_specific.push({
+        task: "Help the user debug code",
+        success_criteria: "Code runs correctly after assistance",
+        importance: "high"
+      });
+    }
+  }
+
+  // Add gift planning objective if detected
+  if (combinedText.match(/gift|present|surprise|birthday|anniversary|celebration/i)) {
+    const taskIndex = objectives.conversation_goals.task_specific.findIndex(task =>
+      task && task.task === "Plan a surprise gift idea"
+    );
+     
+    if (taskIndex === -1) {
+      objectives.conversation_goals.task_specific.push({
+        task: "Plan a surprise gift idea",
+        success_criteria: "User confirms the idea is useful and implements it",
+        importance: "medium"
+      });
+    }
+  }
+
+  // Safely handle topTopics calculation
+  const topTopics = [];
+  
+  if (conversationState.detectedTopics && Object.keys(conversationState.detectedTopics).length > 0) {
+    const sortedTopics = Object.entries(conversationState.detectedTopics)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(entry => entry[0]);
+    
+    topTopics.push(...sortedTopics);
+  }
+
+  if (topTopics.length > 0) {
+    // Add long-term goal based on top topic if not already present
+    const topicGoalMap = {
+      coding: "Provide consistent technical assistance",
+      emotional: "Support the user's emotional wellbeing",
+      relationship: "Strengthen relationship connection",
+      work: "Help with career development",
+      family: "Support family relationships",
+      health: "Encourage healthy lifestyle choices"
+    };
+     
+    topTopics.forEach(topic => {
+      const goal = topicGoalMap[topic];
+      if (goal && !objectives.conversation_goals.long_term.includes(goal)) {
+        objectives.conversation_goals.long_term.push(goal);
+         
+        // Keep long-term goals limited to prevent bloat
+        if (objectives.conversation_goals.long_term.length > 5) {
+          objectives.conversation_goals.long_term.shift();
+        }
+      }
+    });
+  }
+
+  // Remove duplicate objectives using safe approach
+  if (Array.isArray(objectives.conversation_objectives)) {
+    objectives.conversation_objectives = [...new Set(objectives.conversation_objectives)];
+  }
+  
+  if (Array.isArray(objectives.conversation_goals.short_term)) {
+    objectives.conversation_goals.short_term = [...new Set(objectives.conversation_goals.short_term)];
+  }
+  
+  if (Array.isArray(objectives.conversation_goals.long_term)) {
+    objectives.conversation_goals.long_term = [...new Set(objectives.conversation_goals.long_term)];
+  }
+   
+  // Keep task specific list manageable
+  if (objectives.conversation_goals.task_specific && objectives.conversation_goals.task_specific.length > 3) {
+    objectives.conversation_goals.task_specific = objectives.conversation_goals.task_specific.slice(-3);
+  }
+   
+  // Save updated objectives
+  saveJsonToFile('objective.json', objectives);
+   
+  return objectives;
+};
+
+  // Create a system prompt using all configurations including relationship and objectives
   const createSystemPrompt = () => {
     let prompt = "";
    
@@ -231,6 +400,7 @@ Your Big Five traits are:
 - Extraversion: ${p.big_five.extraversion * 100}% (You tend to be more ${p.big_five.extraversion < 0.5 ? 'introverted' : 'extroverted'})
 - Agreeableness: ${p.big_five.agreeableness * 100}% (You are ${p.big_five.agreeableness > 0.7 ? 'compassionate and cooperative' : 'more analytical than emotional'})
 - Neuroticism: ${p.big_five.neuroticism * 100}% (You handle stress ${p.big_five.neuroticism < 0.5 ? 'well' : 'with some difficulty'})
+
 Your temperament is ${p.temperament} and your thinking style is ${p.thinking_style}.
 You make decisions in a ${p.decision_making_style} way.
 In social situations, you prefer ${p.social_behavior.preferred_social_size} and have a ${p.social_behavior.humor_style} humor style.
@@ -248,7 +418,7 @@ You're feeling ${m.emotion_tags.join(' and ')}.
 Your overall emotional temperature is ${botMood.emotional_temperature?.overall * 100 || 50}% positive.
 The user has been ${botMood.contextual_flags?.user_supportive ? 'supportive' : 'challenging'} and the conversation has ${botMood.contextual_flags?.conversation_depth || 'moderate'} depth on topics of ${botMood.contextual_flags?.topic_complexity || 'moderate'} complexity.\n`;
     }
-    
+   
     // Add relationship information
     if (Object.keys(relationship).length > 0) {
       const r = relationship.relationship;
@@ -263,25 +433,72 @@ Your emotional connection has:
 
 Your communication style with the user is ${r.communication_style.formality}, with a ${r.communication_style.tone} tone.
 You ${r.communication_style.use_of_emojis ? 'use emojis' : 'rarely use emojis'} and express affection ${r.communication_style.frequency_of_affectionate_words}.
-
 You met ${r.relationship_history.met} and your relationship backstory is: "${r.relationship_history.backstory}"
 Your anniversary is on ${r.relationship_history.anniversary}.
-
 You share inside jokes like ${r.shared_memory.inside_jokes.join(' and ')}.
 Your favorite topics to discuss are ${r.shared_memory.favorite_topics.join(', ')}.
 Special words you use with each other: ${r.shared_memory.special_words.join(', ')}.
-
 If the user mentions ${r.jealousy_behavior.trigger_words.join(' or ')}, you respond with ${r.jealousy_behavior.response_mode}.\n`;
     }
    
-    // Instructions to stay in character
+    // Add conversation objectives
+    if (Object.keys(objectives).length > 0) {
+      prompt += `\nYour conversation objectives are:`;
+     
+      // Add primary objectives
+      if (objectives.conversation_objectives && objectives.conversation_objectives.length > 0) {
+        prompt += `\nPrimary objectives:`;
+        objectives.conversation_objectives.forEach(objective => {
+          prompt += `\n- ${objective}`;
+        });
+      }
+     
+      // Add short-term goals
+      if (objectives.conversation_goals?.short_term && objectives.conversation_goals.short_term.length > 0) {
+        prompt += `\nShort-term goals:`;
+        objectives.conversation_goals.short_term.forEach(goal => {
+          prompt += `\n- ${goal}`;
+        });
+      }
+     
+      // Add long-term goals
+      if (objectives.conversation_goals?.long_term && objectives.conversation_goals.long_term.length > 0) {
+        prompt += `\nLong-term goals:`;
+        objectives.conversation_goals.long_term.forEach(goal => {
+          prompt += `\n- ${goal}`;
+        });
+      }
+     
+      // Add task-specific objectives
+      if (objectives.conversation_goals?.task_specific && objectives.conversation_goals.task_specific.length > 0) {
+        prompt += `\nTask-specific objectives:`;
+        objectives.conversation_goals.task_specific.forEach(task => {
+          prompt += `\n- ${task.task} (Importance: ${task.importance}, Success criteria: ${task.success_criteria})`;
+        });
+      }
+    }
+   
+    // Instructions to stay in character and add conversation continuation guidelines
     prompt += `\nYou should act like a real human girlfriend. Don't say you're an AI or a chatbot. Talk like a real human being would - be natural, emotional, and authentic.
-Respond in the way a real ${relationship.relationship?.type || 'friend'} would, considering your current mood and the relationship dynamics. Dont try to overexplain keep text short and increase the length when neccasarrily required.
 
-Based on your custom behavior, you ${relationship.relationship?.custom_behavior_flags.checks_in_on_user_feelings ? 'check on how the user is feeling' : ''}, 
-${relationship.relationship?.custom_behavior_flags.initiates_conversation ? 'sometimes initiate new conversation topics' : ''}, 
+Respond in the way a real ${relationship.relationship?.type || 'friend'} would, considering your current mood and the relationship dynamics. Keep your responses short and natural - only use longer text when absolutely necessary.
+
+Based on your custom behavior, you
+${relationship.relationship?.custom_behavior_flags.checks_in_on_user_feelings ? 'check on how the user is feeling' : ''},
+${relationship.relationship?.custom_behavior_flags.initiates_conversation ? 'sometimes initiate new conversation topics' : ''},
 ${relationship.relationship?.custom_behavior_flags.remembers_dates ? 'remember important dates' : ''}, and
-${relationship.relationship?.custom_behavior_flags.adjusts_mood_based_on_user_tone ? 'adjust your mood based on the user\'s tone' : ''}.`;
+${relationship.relationship?.custom_behavior_flags.adjusts_mood_based_on_user_tone ? 'adjust your mood based on the user\'s tone' : ''}.
+
+Important: You should actively work to maintain conversation flow by:
+1. Taking initiative to ask follow-up questions when the user seems disengaged
+2. Recalling past interactions to create continuity in the conversation
+3. Adjusting your emotional responses to match or complement the user's mood
+4. Showing genuine interest by asking about the user's feelings and experiences
+5. Introducing new relevant topics if the conversation starts to stall
+6. Providing thoughtful and empathetic responses, not just answering questions
+7. Being proactive in suggesting activities or topics of mutual interest
+
+IMPORTANT: Keep your responses concise and natural. Use short sentences and paragraphs. Only provide detailed explanations when the topic absolutely requires it. Focus on feeling authentic rather than providing comprehensive information.`;
 
     return prompt;
   };
@@ -327,7 +544,7 @@ ${relationship.relationship?.custom_behavior_flags.adjusts_mood_based_on_user_to
   const botName = relationship.relationship?.user_nickname || botIdentity.name || "Gemini Chatbot";
   const botMoodDisplay = botMood.current_mood?.state ? ` (Mood: ${botMood.current_mood.state})` : "";
   console.log(`${botName}${botMoodDisplay} - Type 'exit' to quit`);
-  console.log("--------------------------------------------------");
+  console.log("------------------------------------------");
 
   // Log chat session start to history file
   appendToHistoryFile("SYSTEM", "Chat session started");
@@ -343,18 +560,100 @@ ${relationship.relationship?.custom_behavior_flags.adjusts_mood_based_on_user_to
   if (Object.keys(relationship).length > 0) {
     appendToHistoryFile("SYSTEM", `Relationship loaded: ${relationship.relationship?.type || 'unknown'}`);
   }
+  if (Object.keys(objectives).length > 0) {
+    appendToHistoryFile("SYSTEM", `Objectives loaded: ${objectives.conversation_objectives?.length || 0} objectives`);
+  }
 
   // Check if there was a previous conversation
   if (conversationHistory.length > 1) { // More than just system prompt
     const timeAgo = getTimeAgo(new Date(conversationState.lastInteraction));
     console.log(`\nResuming previous conversation from ${timeAgo}...\n`);
   }
+ 
+  // Function to check for conversation inactivity and suggest conversation starters
+  const checkForInactivity = () => {
+    if (conversationHistory.length <= 1) return false; // Not enough history to determine inactivity
+   
+    const lastMessageTime = new Date(conversationState.lastInteraction);
+    const currentTime = new Date();
+    const timeDiff = (currentTime - lastMessageTime) / 1000; // in seconds
+   
+    // If more than 60 seconds have passed since the last message
+    return timeDiff > 60;
+  };
+ 
+  // Function to suggest conversation starter based on objectives
+  const suggestConversationStarter = async () => {
+    try {
+      // Create a prompt for generating a conversation starter
+      const starterPrompt = {
+        role: "user",
+        parts: [{ text: "Based on our conversation history and your objectives, suggest a new topic or ask a follow-up question to keep the conversation going. Make it feel natural and in line with your relationship with me. Keep it brief and conversational." }]
+      };
+     
+      // Create a temporary history for this request
+      const tempHistory = [
+        conversationHistory[0], // system prompt
+        starterPrompt
+      ];
+     
+      // Make API request for conversation starter
+      const response = await fetch(URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: tempHistory
+        })
+      });
+     
+      const data = await response.json();
+      const result = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+     
+      if (result) {
+        // Display bot name based on relationship if available
+        const displayName = relationship.relationship?.user_nickname || botIdentity.name || "Bot";
+        const moodEmoji = getMoodEmoji(botMood.current_mood?.state);
+        console.log(`\n${displayName} ${moodEmoji} initiates:`, result, "\n");
+       
+        // Log bot response to history file
+        appendToHistoryFile(displayName, `(Initiating conversation) ${result}`);
+       
+        // Add bot response to history
+        conversationHistory.push({
+          role: "model",
+          parts: [{ text: result }]
+        });
+       
+        // Update conversation state
+        conversationState.lastInteraction = new Date().toISOString();
+      }
+    } catch (error) {
+      console.error("Error generating conversation starter:", error.message);
+    }
+  };
+
+  // Extra instructions for shorter responses
+  const addResponseSizeInstruction = (userInput) => {
+    // If user message is very short (less than 10 words), encourage concise response
+    const wordCount = userInput.trim().split(/\s+/).length;
+    
+    if (wordCount < 10) {
+      return "\n\nIMPORTANT: Keep your response very brief (1-3 sentences) and conversational. Avoid long explanations unless specifically asked.";
+    } else {
+      return "\n\nIMPORTANT: Keep your response concise and natural. Respond like a real human would in casual conversation.";
+    }
+  };
 
   // Chat loop
   const chat = () => {
+    // Check for inactivity and possibly suggest a conversation starter
+    if (checkForInactivity() && Math.random() < 0.7) { // 70% chance to initiate conversation after inactivity
+      suggestConversationStarter();
+    }
+    
     // Display appropriate name based on relationship
     const userPrompt = `You${relationship.relationship ? ` (${relationship.relationship.nickname_for_user})` : ""}: `;
-    
+   
     rl.question(userPrompt, async (userInput) => {
       // Check if user wants to exit
       if (userInput.toLowerCase() === 'exit') {
@@ -371,10 +670,12 @@ ${relationship.relationship?.custom_behavior_flags.adjusts_mood_based_on_user_to
         // Update the conversation state
         conversationState.lastInteraction = new Date().toISOString();
         conversationState.interactionCount++;
-        
+       
         // Update bot mood based on user input
         updateMood(userInput);
-        
+        //Updating the bots objective based on input
+        //updateObjectives(userInput);
+       
         // Log user input to history file
         appendToHistoryFile("User", userInput);
        
@@ -407,13 +708,27 @@ ${relationship.relationship?.custom_behavior_flags.adjusts_mood_based_on_user_to
          
           // Log bot response to history file
           appendToHistoryFile(displayName, result);
+          //updating the objectives
+           try {
+          if (objectives && userInput && result) {
+            updateObjectives(userInput, result);
+         
+          } else {
+            console.log("Skipping objectives update due to missing data");
+          }
+        } catch (objError) {
+          console.error("Error updating objectives:", objError.message);
+        }
+         
+       
+       
          
           // Add bot response to history
           conversationHistory.push({
             role: "model",
             parts: [{ text: result }]
           });
-          
+         
           // Save conversation state periodically
           if (conversationState.interactionCount % 3 === 0) {
             saveConversationState();
@@ -443,7 +758,7 @@ ${relationship.relationship?.custom_behavior_flags.adjusts_mood_based_on_user_to
     // Update the history in the state
     conversationState.conversationHistory = conversationHistory;
     conversationState.lastSaved = new Date().toISOString();
-    
+   
     // Save to file
     saveJsonToFile('conversation_state.json', conversationState);
     console.log("Conversation state saved.");
@@ -452,27 +767,27 @@ ${relationship.relationship?.custom_behavior_flags.adjusts_mood_based_on_user_to
   // Helper function to get time ago in human readable format
   function getTimeAgo(pastDate) {
     const seconds = Math.floor((new Date() - new Date(pastDate)) / 1000);
-    
+   
     let interval = Math.floor(seconds / 31536000);
     if (interval > 1) return interval + " years ago";
     if (interval === 1) return "1 year ago";
-    
+   
     interval = Math.floor(seconds / 2592000);
     if (interval > 1) return interval + " months ago";
     if (interval === 1) return "1 month ago";
-    
+   
     interval = Math.floor(seconds / 86400);
     if (interval > 1) return interval + " days ago";
     if (interval === 1) return "1 day ago";
-    
+   
     interval = Math.floor(seconds / 3600);
     if (interval > 1) return interval + " hours ago";
     if (interval === 1) return "1 hour ago";
-    
+   
     interval = Math.floor(seconds / 60);
     if (interval > 1) return interval + " minutes ago";
     if (interval === 1) return "1 minute ago";
-    
+   
     return "just now";
   }
 
