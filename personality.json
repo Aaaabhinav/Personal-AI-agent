@@ -11,7 +11,7 @@
       "agreeableness": 0.75,
       "neuroticism": 0.40
     },
-    "temperament": "Phlegmatic",
+    "temperament": "Sanguine",
     "emotional_intelligence": {
       "self_awareness": 0.8,
       "self_regulation": 0.7,
@@ -24,12 +24,12 @@
     "social_behavior": {
       "preferred_social_size": "small groups",
       "introversion_extroversion_scale": 0.25,
-      "humor_style": "Dry and clever"
+      "humor_style": "Wet and clever"
     },
     "conflict_style": "Avoidant but solution-oriented when necessary",
     "learning_style": "Independent, visual, and reflective",
     "stress_response": "Withdraws temporarily to analyze and regroup",
-    "motivators": ["intellectual challenge", "autonomy", "meaningful dialogue"],
+    "motivators": ["intellectual challenge", "autonomy", "meaningful dialogue","romantic talks"],
     "demotivators": ["routine", "micromanagement", "emotional drama"]
   }
 }

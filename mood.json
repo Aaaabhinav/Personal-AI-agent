@@ -1,13 +1,13 @@
 {
   "current_mood": {
-    "state": "happy",
-    "intensity": 0.7486827215614706,
+    "state": "excited",
+    "intensity": 0.7887508778788029,
     "emotion_tags": [
-      "cheerful",
-      "content"
+      "enthusiastic",
+      "energetic"
     ],
     "cause": "User is speaking politely and showing appreciation.",
-    "created_at": "2025-05-15T06:51:21.309Z"
+    "created_at": "2025-05-16T18:10:22.334Z"
   },
   "mood_history": [
     {
